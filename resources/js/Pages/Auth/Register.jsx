@@ -1,0 +1,8 @@
+import React from 'react';
+import { Head, useForm, Link } from '@inertiajs/react';
+
+export default function Register() {
+    const { data, setData, post, processing, errors } = useForm({ name: '', username: '', email: '', phone: '', address: '', password: '', password_confirmation: '' });
+    const submit = (event) => { event.preventDefault(); post('/register'); };
+    return <main className="flex min-h-screen items-center justify-center bg-slate-100 p-4"><Head title="Daftar Pelanggan"/><form onSubmit={submit} className="w-full max-w-lg space-y-3 rounded-2xl bg-white p-6 shadow"><h1 className="text-2xl font-black">Daftar Akun Pelanggan</h1>{[['name','Nama lengkap'],['username','Username'],['email','Email'],['phone','Nomor telepon'],['address','Alamat pengiriman'],['password','Password'],['password_confirmation','Ulangi password']].map(([key,label])=><label className="block text-sm font-semibold" key={key}>{label}{key==='address'?<textarea required value={data[key]} onChange={(event)=>setData(key,event.target.value)} className="mt-1 w-full rounded-lg border p-2"/>:<input required={key!=='phone'} type={key.includes('password')?'password':key==='email'?'email':'text'} value={data[key]} onChange={(event)=>setData(key,event.target.value)} className="mt-1 w-full rounded-lg border p-2"/>}{errors[key]&&<span className="text-xs text-rose-600">{errors[key]}</span>}</label>)}<button disabled={processing} className="w-full rounded-lg bg-blue-600 p-3 font-bold text-white">Buat Akun</button><p className="text-center text-sm">Sudah punya akun? <Link href="/login" className="text-blue-700">Masuk</Link></p></form></main>;
+}

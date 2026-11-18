@@ -20,10 +20,17 @@ class Pelanggan extends Model
         'alamat',
         'email',
         'kota',
+        'user_id',
+        'saldo',
     ];
 
     public function transaksi()
     {
         return $this->hasMany(Transaksi::class, 'id_pelanggan', 'id_pelanggan');
+    }
+
+    public function akun()
+    {
+        return $this->belongsTo(User::class, 'user_id');
     }
 }

@@ -17,6 +17,11 @@ class Kategori extends Model
 
     protected $fillable = [
         'nama_kategori',
+        'is_system',
+    ];
+
+    protected $attributes = [
+        'is_system' => false,
     ];
 
     public function produk()

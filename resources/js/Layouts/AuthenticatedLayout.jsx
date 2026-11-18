@@ -8,6 +8,7 @@ import {
     FolderTree,
     Boxes,
     Users,
+    CreditCard,
     ReceiptText,
     BarChart3,
     UserCog,
@@ -131,6 +132,15 @@ export default function AuthenticatedLayout({ children, title }) {
         },
     ];
 
+    if (user?.role === 'user') {
+        navigation.splice(0, navigation.length,
+            { name: 'Belanja', href: '/shop', icon: ShoppingCart, roles: ['user'], highlight: true },
+            { name: 'Pesanan Saya', href: '/shop/orders', icon: ReceiptText, roles: ['user'] },
+            { name: 'Saldo Saya', href: '/wallet', icon: CreditCard, roles: ['user'] },
+            { name: 'Profil & Alamat', href: '/shop/profile', icon: Users, roles: ['user'] },
+        );
+    }
+
     const currentUrl = window.location.pathname;
 
     return (
@@ -171,7 +181,7 @@ export default function AuthenticatedLayout({ children, title }) {
                         </div>
 
                         {/* Quick POS button for fast action */}
-                        {currentUrl !== '/pos' && (
+                        {user?.role !== 'user' && currentUrl !== '/pos' && (
                             <Link
                                 href="/pos"
                                 className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold shadow-sm shadow-blue-500/30 transition-all cursor-pointer"
@@ -273,7 +283,7 @@ export default function AuthenticatedLayout({ children, title }) {
 
                     <div className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
                         <div className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                            Operasional Kasir
+                            {user?.role === 'user' ? 'Akun Pelanggan' : 'Operasional Kasir'}
                         </div>
 
                         {navigation

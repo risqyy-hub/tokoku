@@ -285,22 +285,22 @@ export default function Index({ pelanggan, stats = {}, filters = {} }) {
                                                     >
                                                         <Receipt className="w-3.5 h-3.5" />
                                                     </button>
-                                                    <button
+                                                    {!item.user_id && <button
                                                         type="button"
                                                         onClick={() => openEditModal(item)}
                                                         className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                                                         title="Edit Data Pelanggan"
                                                     >
                                                         <Edit2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button
+                                                    </button>}
+                                                    {!item.user_id && <button
                                                         type="button"
                                                         onClick={() => handleDelete(item)}
                                                         className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                                         title="Hapus Pelanggan"
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    </button>}
                                                 </div>
                                             </td>
                                         </tr>

@@ -35,7 +35,8 @@ export default function PosIndex({
     pelangganList = [],
     toko = {}
 }) {
-    const { flash } = usePage().props;
+    const { flash, auth } = usePage().props;
+    const isCustomerRole = auth?.user?.role === 'user';
 
     // Search & Filter State
     const [searchQuery, setSearchQuery] = useState('');
@@ -443,7 +444,7 @@ export default function PosIndex({
     // 5% discount for RFID member
     const diskonMemberNominal = isMember ? Math.round(subtotal * 0.05) : 0;
     const diskonTambahanNominal = Number(diskonNominal) || 0;
-    const totalDiskon = diskonMemberNominal + diskonTambahanNominal;
+    const totalDiskon = diskonMemberNominal + (isMember ? 0 : diskonTambahanNominal);
     const diskonSafe = Math.min(totalDiskon, subtotal);
     const subtotalAfterDiskon = Math.max(0, subtotal - diskonSafe);
 
@@ -504,6 +505,11 @@ export default function PosIndex({
             return;
         }
 
+        if (metodePembayaran === 'saldo' && !selectedPelanggan) {
+            alert('Pilih pelanggan untuk pembayaran saldo.');
+            return;
+        }
+
         setAutoPrintTrigger(withPrint);
         setIsSubmitting(true);
 
@@ -535,7 +541,7 @@ export default function PosIndex({
         <AuthenticatedLayout>
             <Head title="Kasir Toko - POS Terminal" />
 
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {isCustomerRole ? <div className="rounded-xl border bg-amber-50 p-5 text-amber-900">Halaman POS kasir hanya tersedia untuk admin dan kasir. Silakan gunakan katalog belanja pelanggan.</div> : <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* =========================================
                     LEFT SECTION (COL 7 / 8): CATALOG & SEARCH
                    ========================================= */}
@@ -1066,7 +1072,7 @@ export default function PosIndex({
                             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                                 Metode Pembayaran
                             </label>
-                            <div className="grid grid-cols-3 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setMetodePembayaran('tunai')}
@@ -1104,6 +1110,15 @@ export default function PosIndex({
                                 >
                                     <CreditCard className="w-3.5 h-3.5" />
                                     <span>Transfer</span>
+                                </button>
+
+                                <button
+                                    type="button"
+                                    onClick={() => setMetodePembayaran('saldo')}
+                                    className={`py-2 px-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${metodePembayaran === 'saldo' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                                >
+                                    <CreditCard className="w-3.5 h-3.5" />
+                                    <span>Saldo</span>
                                 </button>
                             </div>
                         </div>
@@ -1190,7 +1205,7 @@ export default function PosIndex({
                         </button>
                     </div>
                 </div>
-            </div>
+            </div>}
 
             {/* Quick Add Customer Modal */}
             {customerModalOpen && (

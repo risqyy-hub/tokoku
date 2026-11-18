@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\LogAktivitas;
 use App\Models\Pelanggan;
 use App\Models\Produk;
+use App\Models\SaldoMutasi;
 use App\Models\StokMutasi;
 use App\Models\Transaksi;
 use App\Models\User;
@@ -64,7 +65,7 @@ class TransaksiController extends Controller
 
         $transaksi = $query->orderBy('id_transaksi', 'desc')->paginate(15)->withQueryString();
 
-        $kasirList = User::orderBy('name', 'asc')->get();
+        $kasirList = User::whereIn('role', ['admin', 'kasir'])->orderBy('name', 'asc')->get();
         $pelangganList = Pelanggan::orderBy('nama_pelanggan', 'asc')->get();
 
         $stats = [
@@ -119,6 +120,10 @@ class TransaksiController extends Controller
                 return redirect()->back()->with('error', 'Transaksi ini sudah dibatalkan sebelumnya.');
             }
 
+            if ($transaksi->status === 'menunggu') {
+                return redirect()->back()->with('error', 'Pesanan online yang menunggu tidak dapat dibatalkan lewat POS.');
+            }
+
             // Restore stocks
             foreach ($transaksi->details as $item) {
                 $produk = Produk::lockForUpdate()->find($item->id_produk);
@@ -144,6 +149,29 @@ class TransaksiController extends Controller
             $transaksi->status = 'batal';
             $transaksi->catatan = ($transaksi->catatan ? $transaksi->catatan.' | ' : '')."Dibatalkan: {$request->alasan}";
             $transaksi->save();
+
+            if ($transaksi->metode_pembayaran === 'saldo') {
+                $sudahRefund = SaldoMutasi::where('id_transaksi', $transaksi->id_transaksi)
+                    ->where('jenis', 'refund')
+                    ->exists();
+                if ($sudahRefund) {
+                    return redirect()->back()->with('error', 'Pengembalian saldo transaksi ini sudah pernah diproses.');
+                }
+
+                $customer = Pelanggan::lockForUpdate()->findOrFail($transaksi->id_pelanggan);
+                $saldoSebelum = (float) $customer->saldo;
+                $customer->saldo += $transaksi->total_belanja;
+                $customer->save();
+                SaldoMutasi::create([
+                    'id_pelanggan' => $customer->id_pelanggan,
+                    'jenis' => 'refund',
+                    'jumlah' => $transaksi->total_belanja,
+                    'saldo_sebelum' => $saldoSebelum,
+                    'saldo_sesudah' => $customer->saldo,
+                    'id_transaksi' => $transaksi->id_transaksi,
+                    'keterangan' => "Pengembalian dana transaksi {$transaksi->nomor_transaksi}",
+                ]);
+            }
 
             LogAktivitas::catat(
                 'PEMBATALAN TRANSAKSI',

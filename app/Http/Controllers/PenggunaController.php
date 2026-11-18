@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\LogAktivitas;
+use App\Models\Pelanggan;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -22,6 +23,7 @@ class PenggunaController extends Controller
         $role = $request->input('role');
 
         $users = User::query()
+            ->whereIn('role', ['admin', 'kasir'])
             ->when($search, function ($q, $search) {
                 $q->where(function ($sub) use ($search) {
                     $sub->where('name', 'like', "%{$search}%")
@@ -29,7 +31,7 @@ class PenggunaController extends Controller
                         ->orWhere('email', 'like', "%{$search}%");
                 });
             })
-            ->when($role && $role !== 'all', function ($q) use ($role) {
+            ->when($role && in_array($role, ['admin', 'kasir'], true), function ($q) use ($role) {
                 $q->where('role', $role);
             })
             ->orderBy('id', 'asc')
@@ -37,9 +39,10 @@ class PenggunaController extends Controller
             ->withQueryString();
 
         $stats = [
-            'totalUsers' => User::count(),
+            'totalUsers' => User::whereIn('role', ['admin', 'kasir'])->count(),
             'totalAdmin' => User::where('role', 'admin')->count(),
             'totalKasir' => User::where('role', 'kasir')->count(),
+            'totalPelanggan' => Pelanggan::whereNotNull('user_id')->count(),
             'totalAktif' => User::where('is_active', true)->count(),
         ];
 

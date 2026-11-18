@@ -191,22 +191,22 @@ export default function Index({ kategori = [], filters = {} }) {
                                             </td>
                                             <td className="py-3.5 px-5 text-right">
                                                 <div className="inline-flex items-center gap-1">
-                                                    <button
+                                                    {!cat.is_system && <button
                                                         type="button"
                                                         onClick={() => openEditModal(cat)}
                                                         className="p-1.5 rounded-lg text-slate-500 hover:text-blue-600 hover:bg-blue-50 transition-colors cursor-pointer"
                                                         title="Edit Kategori"
                                                     >
                                                         <Edit2 className="w-3.5 h-3.5" />
-                                                    </button>
-                                                    <button
+                                                    </button>}
+                                                    {!cat.is_system && <button
                                                         type="button"
                                                         onClick={() => confirmDelete(cat)}
                                                         className="p-1.5 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                                                         title="Hapus Kategori"
                                                     >
                                                         <Trash2 className="w-3.5 h-3.5" />
-                                                    </button>
+                                                    </button>}
                                                 </div>
                                             </td>
                                         </tr>

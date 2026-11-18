@@ -3,8 +3,12 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
+use App\Models\Pelanggan;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -17,12 +21,50 @@ class LoginController extends Controller
     public function showLoginForm(): Response
     {
         if (Auth::check()) {
-            return Auth::user()->isAdmin()
-                ? redirect()->intended(route('dashboard'))
-                : redirect()->intended(route('pos.index'));
+            return redirect()->intended(Auth::user()->isAdmin() ? route('dashboard') : (Auth::user()->isCustomer() ? route('shop.index') : route('pos.index')));
         }
 
         return Inertia::render('Auth/Login');
+    }
+
+    public function register(Request $request)
+    {
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:100'],
+            'username' => ['required', 'string', 'max:50', 'alpha_dash', 'unique:users,username'],
+            'email' => ['required', 'email', 'max:100', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:25'],
+            'address' => ['required', 'string', 'max:255'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        $user = DB::transaction(function () use ($validated): User {
+            $validated['phone'] = isset($validated['phone']) ? mb_substr($validated['phone'], 0, 20) : null;
+            $user = User::create([
+                'name' => $validated['name'],
+                'username' => $validated['username'],
+                'email' => $validated['email'],
+                'phone' => $validated['phone'] ?? null,
+                'password' => Hash::make($validated['password']),
+                'role' => 'user',
+                'is_active' => true,
+            ]);
+
+            Pelanggan::create([
+                'nama_pelanggan' => $validated['name'],
+                'no_hp' => $validated['phone'] ?? null,
+                'alamat' => $validated['address'],
+                'email' => $validated['email'],
+                'user_id' => $user->id,
+            ]);
+
+            return $user;
+        });
+
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return redirect()->route('shop.index')->with('success', 'Pendaftaran berhasil. Selamat berbelanja!');
     }
 
     /**
@@ -50,6 +92,11 @@ class LoginController extends Controller
         if (Auth::attempt($attemptCredentials, $remember)) {
             $user = Auth::user();
 
+            if (! in_array($user->role, ['admin', 'kasir', 'user'], true)) {
+                Auth::logout();
+                throw ValidationException::withMessages(['login' => 'Role akun tidak memiliki akses.']);
+            }
+
             if (! $user->is_active) {
                 Auth::logout();
                 throw ValidationException::withMessages([
@@ -59,11 +106,9 @@ class LoginController extends Controller
 
             $request->session()->regenerate();
 
-            if ($user->isAdmin()) {
-                return redirect()->intended(route('dashboard'))->with('success', "Selamat datang kembali, {$user->name}!");
-            }
+            $destination = $user->isAdmin() ? route('dashboard') : ($user->isCustomer() ? route('shop.index') : route('pos.index'));
 
-            return redirect()->intended(route('pos.index'))->with('success', "Selamat bertugas di POS, {$user->name}!");
+            return redirect()->intended($destination)->with('success', "Selamat datang kembali, {$user->name}!");
         }
 
         throw ValidationException::withMessages([

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Head, useForm, usePage } from '@inertiajs/react';
 import LogoToko from '@/Components/LogoToko';
-import { Lock, User, Eye, EyeOff, ShieldCheck, ShoppingCart, ArrowRight } from 'lucide-react';
+import { Lock, User, Eye, EyeOff, ShieldCheck, ShoppingCart, ArrowRight, UserRound } from 'lucide-react';
 
 export default function Login() {
     const [showPassword, setShowPassword] = useState(false);
@@ -18,20 +18,8 @@ export default function Login() {
         post('/login');
     };
 
-    const fillCredentials = (role) => {
-        if (role === 'admin') {
-            setData({
-                login: 'admin',
-                password: 'admin123',
-                remember: true,
-            });
-        } else {
-            setData({
-                login: 'kasir',
-                password: 'kasir123',
-                remember: true,
-            });
-        }
+    const fillCredentials = (login, password) => {
+        setData({ login, password, remember: true });
     };
 
     return (
@@ -57,7 +45,7 @@ export default function Login() {
                     <div className="mb-6">
                         <h2 className="text-xl font-bold text-slate-800">Selamat Datang</h2>
                         <p className="text-xs text-slate-500 mt-0.5">
-                            Silakan masuk menggunakan akun kasir atau administrator
+                            Masuk sebagai pelanggan, kasir, atau administrator
                         </p>
                     </div>
 
@@ -146,28 +134,40 @@ export default function Login() {
                             )}
                         </button>
                     </form>
+                    <p className="mt-4 text-center text-sm text-slate-600">Pelanggan baru? <a href="/register" className="font-bold text-blue-700">Daftar akun</a></p>
 
-                    {/* Quick Demo Access Buttons */}
+                    {/* Quick login shortcuts fill the selected demo account credentials. */}
                     <div className="mt-6 pt-5 border-t border-slate-100">
                         <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-center mb-3">
-                            Akses Cepat Mode Uji Coba:
+                            Login Cepat (Akun Demo)
                         </p>
-                        <div className="grid grid-cols-2 gap-2.5">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                             <button
                                 type="button"
-                                onClick={() => fillCredentials('admin')}
+                                onClick={() => fillCredentials('admin', 'admin123')}
                                 className="p-2.5 rounded-xl border border-blue-200 bg-blue-50/60 hover:bg-blue-100/70 text-blue-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                             >
                                 <ShieldCheck className="w-3.5 h-3.5 text-blue-600" />
-                                <span>Akun Admin</span>
+                                <span>Isi Admin</span>
                             </button>
                             <button
                                 type="button"
-                                onClick={() => fillCredentials('kasir')}
+                                onClick={() => fillCredentials('kasir', 'kasir123')}
                                 className="p-2.5 rounded-xl border border-sky-200 bg-sky-50/60 hover:bg-sky-100/70 text-sky-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                             >
                                 <ShoppingCart className="w-3.5 h-3.5 text-sky-600" />
-                                <span>Akun Kasir</span>
+                                <span>Isi Kasir</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setData({ login: '', password: '', remember: true });
+                                    document.querySelector('input[type="text"]')?.focus();
+                                }}
+                                className="p-2.5 rounded-xl border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100/70 text-emerald-800 text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                            >
+                                <UserRound className="w-3.5 h-3.5 text-emerald-600" />
+                                <span>Login Pelanggan</span>
                             </button>
                         </div>
                     </div>

@@ -27,6 +27,7 @@ class Transaksi extends Model
         'metode_pembayaran',
         'status',
         'catatan',
+        'alamat_pengiriman',
     ];
 
     protected function casts(): array

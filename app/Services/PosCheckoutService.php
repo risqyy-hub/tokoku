@@ -4,13 +4,16 @@ namespace App\Services;
 
 use App\Models\DetailTransaksi;
 use App\Models\LogAktivitas;
+use App\Models\Pelanggan;
 use App\Models\Pengaturan;
 use App\Models\Produk;
+use App\Models\SaldoMutasi;
 use App\Models\StokMutasi;
 use App\Models\Transaksi;
 use Exception;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 
 class PosCheckoutService
@@ -31,7 +34,7 @@ class PosCheckoutService
 
         $idPelanggan = ! empty($data['id_pelanggan']) ? (int) $data['id_pelanggan'] : null;
         $metodePembayaran = $data['metode_pembayaran'] ?? 'tunai';
-        $diskon = isset($data['diskon']) ? (float) $data['diskon'] : 0.0;
+        $diskonManual = Auth::user()?->role === 'user' ? 0.0 : (isset($data['diskon_manual']) ? (float) $data['diskon_manual'] : (float) ($data['diskon'] ?? 0.0));
         $uangDiterima = isset($data['uang_diterima']) ? (float) $data['uang_diterima'] : 0.0;
         $catatan = $data['catatan'] ?? null;
         $userId = Auth::id();
@@ -43,13 +46,14 @@ class PosCheckoutService
         // Perform transactional database write with lockForUpdate to prevent race conditions
         return DB::transaction(function () use (
             $items,
-            $idPelanggan,
+            &$idPelanggan,
             $metodePembayaran,
-            $diskon,
+            $diskonManual,
             $uangDiterima,
             $catatan,
             $userId,
-            $pajakPersen
+            $pajakPersen,
+            $data
         ) {
             $itemProductIds = array_column($items, 'id_produk');
 
@@ -118,19 +122,70 @@ class PosCheckoutService
                 ];
             }
 
-            // Calculate Totals
+            $customer = $idPelanggan ? Pelanggan::lockForUpdate()->find($idPelanggan) : null;
+            if ($idPelanggan && ! $customer) {
+                throw ValidationException::withMessages(['id_pelanggan' => 'Pelanggan tidak ditemukan.']);
+            }
+
+            if (Auth::user()?->role === 'user') {
+                $customer = Pelanggan::where('user_id', Auth::id())->lockForUpdate()->firstOrFail();
+                if ($idPelanggan && (int) $customer->id_pelanggan !== $idPelanggan) {
+                    throw ValidationException::withMessages(['id_pelanggan' => 'Anda hanya dapat membayar untuk akun sendiri.']);
+                }
+                $idPelanggan = $customer->id_pelanggan;
+            }
+
+            if (Auth::user()?->role !== 'user' && $idPelanggan && Schema::hasColumn('tbl_pelanggan', 'user_id')) {
+                $customer = Pelanggan::whereKey($idPelanggan)
+                    ->whereNull('user_id')
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $customer) {
+                    throw ValidationException::withMessages([
+                        'id_pelanggan' => 'Akun pelanggan online hanya dapat digunakan oleh pemilik akun.',
+                    ]);
+                }
+            }
+
+            $isMember = $customer && $customer->no_kartu;
+            $diskonMember = $isMember ? round($subtotalCalculated * 0.05, 2) : 0.0;
+            if ($isMember) {
+                $diskonManual = 0.0;
+            }
+            $diskon = min($subtotalCalculated, $diskonMember + max(0, $diskonManual));
             $subtotalNet = max(0.0, $subtotalCalculated - $diskon);
             $pajakNominal = $pajakPersen > 0 ? round(($subtotalNet * $pajakPersen) / 100, 2) : 0.0;
             $totalBelanja = $subtotalNet + $pajakNominal;
 
+            $isCustomer = Auth::user()?->role === 'user';
+            if ($isCustomer && ! $customer) {
+                throw ValidationException::withMessages(['id_pelanggan' => 'Akun pelanggan belum terhubung dengan data pelanggan.']);
+            }
+
+            if ($isCustomer && ! in_array($metodePembayaran, ['saldo', 'tunai'], true)) {
+                throw ValidationException::withMessages(['metode_pembayaran' => 'Pelanggan dapat memilih pembayaran COD atau saldo.']);
+            }
+
+            if ($metodePembayaran === 'saldo' && (! $customer || $customer->saldo < $totalBelanja)) {
+                throw ValidationException::withMessages(['metode_pembayaran' => 'Saldo pelanggan tidak mencukupi.']);
+            }
+
             // Validate Cash payment
-            if ($metodePembayaran === 'tunai' && $uangDiterima < $totalBelanja) {
+            if ($metodePembayaran === 'tunai' && ! ($data['alamat_pengiriman'] ?? null) && $uangDiterima < $totalBelanja) {
                 throw ValidationException::withMessages([
                     'uang_diterima' => 'Uang yang diterima ('.number_format($uangDiterima, 0, ',', '.').') kurang dari total belanja ('.number_format($totalBelanja, 0, ',', '.').').',
                 ]);
             }
 
-            $kembalian = $metodePembayaran === 'tunai' ? max(0.0, $uangDiterima - $totalBelanja) : 0.0;
+            $isCodOrder = $metodePembayaran === 'tunai' && (bool) ($data['alamat_pengiriman'] ?? null);
+            $kembalian = $metodePembayaran === 'tunai' && ! $isCodOrder ? max(0.0, $uangDiterima - $totalBelanja) : 0.0;
+
+            if ($metodePembayaran === 'saldo') {
+                $customer->saldo -= $totalBelanja;
+                $customer->save();
+                $uangDiterima = $totalBelanja;
+            }
 
             // Generate Sequential Invoice Number (e.g. TRX-20261116-0001)
             $datePrefix = date('Ymd');
@@ -153,12 +208,25 @@ class PosCheckoutService
                 'subtotal' => $subtotalCalculated,
                 'diskon' => $diskon,
                 'pajak' => $pajakNominal,
-                'uang_diterima' => $metodePembayaran === 'tunai' ? $uangDiterima : $totalBelanja,
+                'uang_diterima' => $isCodOrder ? 0 : ($metodePembayaran === 'tunai' ? $uangDiterima : $totalBelanja),
                 'kembalian' => $kembalian,
                 'metode_pembayaran' => $metodePembayaran,
-                'status' => 'selesai',
+                'status' => ($data['alamat_pengiriman'] ?? null) ? 'menunggu' : 'selesai',
                 'catatan' => $catatan,
+                ...((Schema::hasColumn('tbl_transaksi', 'alamat_pengiriman')) ? ['alamat_pengiriman' => $data['alamat_pengiriman'] ?? null] : []),
             ]);
+
+            if ($metodePembayaran === 'saldo') {
+                SaldoMutasi::create([
+                    'id_pelanggan' => $customer->id_pelanggan,
+                    'jenis' => 'pembelian',
+                    'jumlah' => -$totalBelanja,
+                    'saldo_sebelum' => $customer->saldo + $totalBelanja,
+                    'saldo_sesudah' => $customer->saldo,
+                    'id_transaksi' => $transaksi->id_transaksi,
+                    'keterangan' => "Pembayaran transaksi {$invoiceNumber}",
+                ]);
+            }
 
             // Insert Transaction Details & Reduce Stock
             foreach ($itemsToInsert as $detail) {

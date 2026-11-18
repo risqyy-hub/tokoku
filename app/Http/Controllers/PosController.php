@@ -9,6 +9,7 @@ use App\Models\Produk;
 use App\Models\Transaksi;
 use App\Services\PosCheckoutService;
 use Illuminate\Http\Request;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -26,16 +27,18 @@ class PosController extends Controller
         // Active products for POS catalogue
         $produk = Produk::with('kategori')
             ->where('status', 'aktif')
+            ->whereHas('kategori', fn ($query) => $query->where('nama_kategori', '!=', 'Top-up Saldo'))
             ->orderBy('nama_produk', 'asc')
             ->get();
 
         // Featured products for the automatic rotating showcase
         $featured = Produk::with('kategori')
             ->where('status', 'aktif')
+            ->whereHas('kategori', fn ($query) => $query->where('nama_kategori', '!=', 'Top-up Saldo'))
             ->where('is_featured', true)
             ->get();
 
-        $kategoriList = Kategori::orderBy('nama_kategori', 'asc')->get();
+        $kategoriList = Kategori::where('nama_kategori', '!=', 'Top-up Saldo')->orderBy('nama_kategori', 'asc')->get();
         $pelangganList = Pelanggan::orderBy('nama_pelanggan', 'asc')->get();
         $toko = Pengaturan::getToko();
 
@@ -58,11 +61,17 @@ class PosController extends Controller
             'items.*.id_produk' => ['required', 'integer'],
             'items.*.jumlah' => ['required', 'integer', 'min:1'],
             'id_pelanggan' => ['nullable', 'integer'],
-            'metode_pembayaran' => ['required', 'in:tunai,transfer,qris'],
+            'metode_pembayaran' => ['required', 'in:tunai,transfer,qris,saldo'],
             'diskon' => ['nullable', 'numeric', 'min:0'],
             'uang_diterima' => ['nullable', 'numeric', 'min:0'],
             'catatan' => ['nullable', 'string', 'max:255'],
         ]);
+
+        if ($validated['metode_pembayaran'] === 'saldo' && empty($validated['id_pelanggan'])) {
+            throw ValidationException::withMessages([
+                'id_pelanggan' => 'Pilih pelanggan untuk pembayaran saldo.',
+            ]);
+        }
 
         $transaksi = $this->checkoutService->checkout($validated);
         $strukData = $this->checkoutService->getReceiptData($transaksi);

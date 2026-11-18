@@ -120,7 +120,7 @@ export default function Index({ users, stats = {}, filters = {} }) {
                 </div>
 
                 {/* Stat Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
                     <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-soft">
                         <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Total Pengguna</span>
                         <h3 className="text-2xl font-extrabold text-slate-900 mt-1">{stats.totalUsers || 0}</h3>
@@ -137,6 +137,12 @@ export default function Index({ users, stats = {}, filters = {} }) {
                         <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-600">Kasir Toko</span>
                         <h3 className="text-2xl font-extrabold text-emerald-600 mt-1">{stats.totalKasir || 0}</h3>
                         <p className="text-[11px] text-slate-500 mt-0.5">Operasional transaksi</p>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-soft">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-violet-600">Pelanggan</span>
+                        <h3 className="text-2xl font-extrabold text-violet-600 mt-1">{stats.totalPelanggan || 0}</h3>
+                        <p className="text-[11px] text-slate-500 mt-0.5">Akun belanja</p>
                     </div>
 
                     <div className="bg-white rounded-2xl p-4 border border-slate-100 shadow-soft">
@@ -168,7 +174,7 @@ export default function Index({ users, stats = {}, filters = {} }) {
                             }}
                             className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-medium text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 w-full sm:w-44"
                         >
-                            <option value="">Semua Role</option>
+            <option value="">Semua Role</option>
                             <option value="admin">Administrator</option>
                             <option value="kasir">Kasir</option>
                         </select>

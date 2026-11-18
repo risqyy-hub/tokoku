@@ -18,7 +18,7 @@ class PelangganController extends Controller
     {
         $search = $request->input('search');
 
-        $pelanggan = Pelanggan::withCount('transaksi')
+        $pelanggan = Pelanggan::whereNull('user_id')->with('akun')->withCount('transaksi')
             ->withSum('transaksi', 'total_belanja')
             ->when($search, function ($query, $search) {
                 $query->where('nama_pelanggan', 'like', "%{$search}%")
@@ -31,8 +31,8 @@ class PelangganController extends Controller
             ->paginate(15)
             ->withQueryString();
 
-        $totalPelanggan = Pelanggan::count();
-        $totalBelanjaSemua = Transaksi::sum('total_belanja');
+        $totalPelanggan = Pelanggan::whereNull('user_id')->count();
+        $totalBelanjaSemua = Transaksi::whereHas('pelanggan', fn ($query) => $query->whereNull('user_id'))->sum('total_belanja');
 
         return Inertia::render('Pelanggan/Index', [
             'pelanggan' => $pelanggan,
@@ -64,6 +64,7 @@ class PelangganController extends Controller
             'email.email' => 'Format email tidak valid.',
         ]);
 
+        $validated['user_id'] = null;
         $pelanggan = Pelanggan::create($validated);
 
         LogAktivitas::catat(
@@ -82,6 +83,11 @@ class PelangganController extends Controller
     public function update(Request $request, $id)
     {
         $pelanggan = Pelanggan::findOrFail($id);
+        abort_if($pelanggan->user_id, 403, 'Akun pelanggan mandiri hanya dapat dikelola pemiliknya.');
+
+        if (array_key_exists('no_kartu', $request->all()) && $pelanggan->user_id) {
+            abort(403, 'RFID akun pelanggan mandiri tidak dapat diubah lewat POS.');
+        }
 
         $validated = $request->validate([
             'nama_pelanggan' => ['required', 'string', 'max:100'],
@@ -125,6 +131,7 @@ class PelangganController extends Controller
     public function destroy($id)
     {
         $pelanggan = Pelanggan::withCount('transaksi')->findOrFail($id);
+        abort_if($pelanggan->user_id, 403, 'Akun pelanggan mandiri tidak dapat dihapus lewat panel POS.');
 
         if ($pelanggan->transaksi_count > 0) {
             return redirect()->back()->with(

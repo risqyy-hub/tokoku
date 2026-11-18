@@ -45,6 +45,10 @@ class KategoriController extends Controller
             'nama_kategori.max' => 'Nama kategori maksimal 100 karakter.',
         ]);
 
+        if (mb_strtolower(trim($validated['nama_kategori'])) === 'top-up saldo') {
+            return redirect()->back()->withErrors(['nama_kategori' => 'Nama kategori ini disediakan untuk fitur top-up saldo.']);
+        }
+
         $kategori = Kategori::create($validated);
 
         LogAktivitas::catat(
@@ -63,12 +67,20 @@ class KategoriController extends Controller
     {
         $kategori = Kategori::findOrFail($id);
 
+        if ($kategori->is_system) {
+            return redirect()->back()->with('error', 'Kategori sistem tidak dapat diubah.');
+        }
+
         $validated = $request->validate([
             'nama_kategori' => ['required', 'string', 'max:100', "unique:tbl_kategori,nama_kategori,{$id},id_kategori"],
         ], [
             'nama_kategori.required' => 'Nama kategori wajib diisi.',
             'nama_kategori.unique' => 'Nama kategori sudah digunakan.',
         ]);
+
+        if (mb_strtolower(trim($validated['nama_kategori'])) === 'top-up saldo') {
+            return redirect()->back()->withErrors(['nama_kategori' => 'Nama kategori ini disediakan untuk fitur top-up saldo.']);
+        }
 
         $oldName = $kategori->nama_kategori;
         $kategori->update($validated);
@@ -88,6 +100,10 @@ class KategoriController extends Controller
     public function destroy($id)
     {
         $kategori = Kategori::withCount('produk')->findOrFail($id);
+
+        if ($kategori->is_system) {
+            return redirect()->back()->with('error', 'Kategori sistem tidak dapat dihapus.');
+        }
 
         if ($kategori->produk_count > 0) {
             return redirect()->back()->with(

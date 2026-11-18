@@ -9,10 +9,13 @@ use App\Http\Controllers\PengaturanController;
 use App\Http\Controllers\PenggunaController;
 use App\Http\Controllers\PosController;
 use App\Http\Controllers\ProdukController;
+use App\Http\Controllers\ShopController;
 use App\Http\Controllers\StokController;
 use App\Http\Controllers\TransaksiController;
+use App\Http\Controllers\WalletController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+use Inertia\Inertia;
 
 /*
 |--------------------------------------------------------------------------
@@ -25,7 +28,7 @@ Route::get('/', function () {
     if (Auth::check()) {
         return Auth::user()->isAdmin()
             ? redirect()->route('dashboard')
-            : redirect()->route('pos.index');
+            : (Auth::user()->isCustomer() ? redirect()->route('shop.index') : redirect()->route('pos.index'));
     }
 
     return redirect()->route('login');
@@ -35,13 +38,16 @@ Route::get('/', function () {
 Route::middleware('guest')->group(function () {
     Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
     Route::post('/login', [LoginController::class, 'login']);
+    Route::get('/register', fn () => Inertia::render('Auth/Register'))->name('register.form');
+    Route::post('/register', [LoginController::class, 'register'])->name('register');
 });
 
 // Logout (Authenticated only)
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
+Route::post('/payment/midtrans/notification', [WalletController::class, 'notification'])->name('wallet.notification');
 
 // Protected Routes: Kasir & Admin
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'role:admin,kasir'])->group(function () {
     // POS Terminal
     Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
@@ -57,6 +63,16 @@ Route::middleware(['auth'])->group(function () {
     // Transaksi History & Reprint Receipt (Kasir & Admin can reprint)
     Route::get('/transaksi', [TransaksiController::class, 'index'])->name('transaksi.index');
     Route::get('/transaksi/{id}/receipt', [TransaksiController::class, 'receipt'])->name('transaksi.receipt');
+});
+
+Route::middleware(['auth', 'role:user'])->group(function () {
+    Route::get('/shop', [ShopController::class, 'index'])->name('shop.index');
+    Route::post('/shop/checkout', [ShopController::class, 'checkout'])->name('shop.checkout');
+    Route::get('/shop/orders', [ShopController::class, 'orders'])->name('shop.orders');
+    Route::get('/shop/profile', [ShopController::class, 'profile'])->name('shop.profile');
+    Route::put('/shop/profile', [ShopController::class, 'updateProfile'])->name('shop.profile.update');
+    Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
+    Route::post('/wallet/topup', [WalletController::class, 'create'])->name('wallet.topup');
 });
 
 // Admin-only Routes
