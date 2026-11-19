@@ -178,6 +178,7 @@ class PosCheckoutService
                 ]);
             }
 
+            $isPendingGatewayPayment = $metodePembayaran === 'duitku';
             $isCodOrder = $metodePembayaran === 'tunai' && (bool) ($data['alamat_pengiriman'] ?? null);
             $kembalian = $metodePembayaran === 'tunai' && ! $isCodOrder ? max(0.0, $uangDiterima - $totalBelanja) : 0.0;
 
@@ -208,10 +209,11 @@ class PosCheckoutService
                 'subtotal' => $subtotalCalculated,
                 'diskon' => $diskon,
                 'pajak' => $pajakNominal,
-                'uang_diterima' => $isCodOrder ? 0 : ($metodePembayaran === 'tunai' ? $uangDiterima : $totalBelanja),
+                'uang_diterima' => ($isCodOrder || $isPendingGatewayPayment) ? 0 : ($metodePembayaran === 'tunai' ? $uangDiterima : $totalBelanja),
                 'kembalian' => $kembalian,
-                'metode_pembayaran' => $metodePembayaran,
-                'status' => ($data['alamat_pengiriman'] ?? null) ? 'menunggu' : 'selesai',
+                'metode_pembayaran' => $metodePembayaran === 'duitku' ? 'transfer' : $metodePembayaran,
+                ...(! empty($data['duitku_order_id']) && Schema::hasColumn('tbl_transaksi', 'duitku_order_id') ? ['duitku_order_id' => $data['duitku_order_id']] : []),
+                'status' => (($data['alamat_pengiriman'] ?? null) || $isPendingGatewayPayment) ? 'menunggu' : 'selesai',
                 'catatan' => $catatan,
                 ...((Schema::hasColumn('tbl_transaksi', 'alamat_pengiriman')) ? ['alamat_pengiriman' => $data['alamat_pengiriman'] ?? null] : []),
             ]);
@@ -234,7 +236,7 @@ class PosCheckoutService
                 DetailTransaksi::create($detail);
             }
 
-            foreach ($stockReductions as $red) {
+            foreach ($isPendingGatewayPayment ? [] : $stockReductions as $red) {
                 /** @var Produk $p */
                 $p = $red['product'];
                 $p->stok = $red['stok_sesudah'];
@@ -278,6 +280,10 @@ class PosCheckoutService
             'waktu' => $transaksi->created_at ? $transaksi->created_at->format('H:i:s') : date('H:i:s'),
             'kasir' => $transaksi->kasir ? $transaksi->kasir->name : 'Kasir Toko',
             'pelanggan' => $transaksi->pelanggan ? $transaksi->pelanggan->nama_pelanggan : 'Pelanggan Umum',
+            'is_online' => (bool) $transaksi->alamat_pengiriman,
+            'alamat_pengiriman' => $transaksi->alamat_pengiriman,
+            'status' => $transaksi->status,
+            'is_cod' => $transaksi->metode_pembayaran === 'tunai' && (bool) $transaksi->alamat_pengiriman,
             'is_member' => (bool) ($transaksi->pelanggan && $transaksi->pelanggan->no_kartu),
             'no_kartu' => $transaksi->pelanggan ? $transaksi->pelanggan->no_kartu : null,
             'metode_pembayaran' => strtoupper($transaksi->metode_pembayaran),

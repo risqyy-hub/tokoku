@@ -6,7 +6,7 @@ import LogoToko from '@/Components/LogoToko';
 export default function ThermalReceipt({ receipt, onClose, autoPrint = false }) {
     if (!receipt) return null;
 
-    const hasAutoPrintedRef = useRef(false);
+    const lastAutoPrintedReceiptRef = useRef(null);
 
     const formatRupiah = (val) => {
         return new Intl.NumberFormat('id-ID', {
@@ -21,14 +21,14 @@ export default function ThermalReceipt({ receipt, onClose, autoPrint = false }) 
     };
 
     useEffect(() => {
-        if (autoPrint && !hasAutoPrintedRef.current) {
-            hasAutoPrintedRef.current = true;
+        if (autoPrint && lastAutoPrintedReceiptRef.current !== receipt.nomor_transaksi) {
+            lastAutoPrintedReceiptRef.current = receipt.nomor_transaksi;
             const timer = setTimeout(() => {
                 window.print();
             }, 350);
             return () => clearTimeout(timer);
         }
-    }, [autoPrint]);
+    }, [autoPrint, receipt.nomor_transaksi]);
 
     return (
         <>
@@ -40,7 +40,7 @@ export default function ThermalReceipt({ receipt, onClose, autoPrint = false }) 
                             <CheckCircle className="w-5 h-5" />
                             <h3 className="text-base font-bold text-slate-800">Transaksi Selesai</h3>
                         </div>
-                        <button
+                            <button
                             type="button"
                             onClick={onClose}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100"
@@ -211,7 +211,7 @@ export default function ThermalReceipt({ receipt, onClose, autoPrint = false }) 
                             {receipt.toko?.slogan && (
                                 <div style={{ fontSize: '10px' }}>{receipt.toko.slogan}</div>
                             )}
-                            <div style={{ fontSize: '10px' }}>{receipt.toko?.alamat}</div>
+                                <div style={{ fontSize: '10px' }}>{receipt.toko?.alamat}</div>
                             <div style={{ fontSize: '10px' }}>Telp: {receipt.toko?.telepon || '-'}</div>
                         </div>
 

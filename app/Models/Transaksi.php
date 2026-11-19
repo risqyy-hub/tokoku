@@ -28,6 +28,8 @@ class Transaksi extends Model
         'status',
         'catatan',
         'alamat_pengiriman',
+        'duitku_order_id',
+        'duitku_reference',
     ];
 
     protected function casts(): array

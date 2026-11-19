@@ -96,7 +96,7 @@ class TransaksiController extends Controller
      */
     public function receipt($id)
     {
-        $transaksi = Transaksi::findOrFail($id);
+        $transaksi = Transaksi::with(['kasir', 'pelanggan', 'details.produk'])->findOrFail($id);
         $struk = $this->checkoutService->getReceiptData($transaksi);
 
         return response()->json($struk);

@@ -18,6 +18,11 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
         ]);
 
+        $middleware->validateCsrfTokens(except: [
+            'payment/duitku/notification',
+            'pos/duitku/notification',
+        ]);
+
         $middleware->alias([
             'role' => RoleMiddleware::class,
         ]);

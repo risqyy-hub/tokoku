@@ -94,7 +94,8 @@ export default function Index({
     const handleReprintReceipt = async (trxId) => {
         setLoadingReceipt(true);
         try {
-            const res = await fetch(`/transaksi/${trxId}/receipt`);
+            const res = await fetch(`/transaksi/${trxId}/receipt`, { headers: { Accept: 'application/json' }, credentials: 'same-origin' });
+            if (!res.ok) throw new Error('Gagal memuat data struk.');
             const data = await res.json();
             setReceiptData(data);
         } catch (err) {

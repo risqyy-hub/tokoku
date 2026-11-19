@@ -10,7 +10,7 @@ class Topup extends Model
 
     protected $primaryKey = 'id_topup';
 
-    protected $fillable = ['order_id', 'id_pelanggan', 'jumlah', 'status', 'snap_token', 'redirect_url', 'payment_type', 'paid_at'];
+    protected $fillable = ['order_id', 'id_pelanggan', 'jumlah', 'status', 'snap_token', 'gateway_reference', 'redirect_url', 'payment_type', 'paid_at'];
 
     protected function casts(): array
     {

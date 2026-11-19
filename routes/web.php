@@ -44,13 +44,15 @@ Route::middleware('guest')->group(function () {
 
 // Logout (Authenticated only)
 Route::post('/logout', [LoginController::class, 'logout'])->name('logout')->middleware('auth');
-Route::post('/payment/midtrans/notification', [WalletController::class, 'notification'])->name('wallet.notification');
+Route::post('/payment/duitku/notification', [WalletController::class, 'notification'])->name('wallet.notification');
+Route::get('/payment/duitku/return', [WalletController::class, 'return'])->name('wallet.return');
 
 // Protected Routes: Kasir & Admin
 Route::middleware(['auth', 'role:admin,kasir'])->group(function () {
     // POS Terminal
     Route::get('/pos', [PosController::class, 'index'])->name('pos.index');
     Route::post('/pos/checkout', [PosController::class, 'checkout'])->name('pos.checkout');
+    Route::post('/pos/duitku/{transaction}/check', [PosController::class, 'checkDuitkuPayment'])->name('pos.duitku.check');
     Route::get('/pos/receipt/{id}', [PosController::class, 'getReceipt'])->name('pos.receipt');
 
     // Pelanggan (Master Data & Kasir lookup)
@@ -73,6 +75,7 @@ Route::middleware(['auth', 'role:user'])->group(function () {
     Route::put('/shop/profile', [ShopController::class, 'updateProfile'])->name('shop.profile.update');
     Route::get('/wallet', [WalletController::class, 'index'])->name('wallet.index');
     Route::post('/wallet/topup', [WalletController::class, 'create'])->name('wallet.topup');
+    Route::post('/wallet/topup/{topup}/check', [WalletController::class, 'check'])->name('wallet.topup.check');
 });
 
 // Admin-only Routes

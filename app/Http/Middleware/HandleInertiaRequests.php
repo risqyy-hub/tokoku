@@ -55,6 +55,8 @@ class HandleInertiaRequests extends Middleware
                 'error' => fn () => $request->session()->get('error'),
                 'info' => fn () => $request->session()->get('info'),
                 'struk' => fn () => $request->session()->get('struk'),
+                'paymentUrl' => fn () => $request->session()->get('paymentUrl'),
+                'pendingDuitku' => fn () => $request->session()->get('pendingDuitku'),
             ],
             'toko' => [
                 'nama_toko' => $toko->nama_toko,

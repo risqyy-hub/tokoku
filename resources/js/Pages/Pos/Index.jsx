@@ -33,7 +33,12 @@ export default function PosIndex({
     featured = [],
     kategoriList = [],
     pelangganList = [],
-    toko = {}
+    toko = {},
+    pesananOnline = [],
+    duitkuConfigured = false,
+    paymentMethods = [],
+    paymentMethodsError = null,
+    pendingDuitku = null,
 }) {
     const { flash, auth } = usePage().props;
     const isCustomerRole = auth?.user?.role === 'user';
@@ -47,6 +52,12 @@ export default function PosIndex({
     const [cart, setCart] = useState([]);
     const [selectedPelanggan, setSelectedPelanggan] = useState('');
     const [metodePembayaran, setMetodePembayaran] = useState('tunai');
+    const [duitkuMethod, setDuitkuMethod] = useState('');
+    const [duitkuPending, setDuitkuPending] = useState(pendingDuitku);
+
+    useEffect(() => {
+        if (pendingDuitku) setDuitkuPending(pendingDuitku);
+    }, [pendingDuitku]);
     const [diskonNominal, setDiskonNominal] = useState(0);
     const [uangDiterima, setUangDiterima] = useState('');
     const [catatan, setCatatan] = useState('');
@@ -75,6 +86,22 @@ export default function PosIndex({
             currency: 'IDR',
             minimumFractionDigits: 0,
         }).format(val || 0);
+    };
+
+    const handleReprintReceipt = async (transactionId) => {
+        try {
+            const response = await fetch(`/pos/receipt/${transactionId}`, {
+                headers: { Accept: 'application/json' },
+                credentials: 'same-origin',
+            });
+            if (!response.ok) {
+                throw new Error('Gagal memuat data nota.');
+            }
+            setReceiptModalData(await response.json());
+            setAutoPrintTrigger(false);
+        } catch (error) {
+            window.alert(error.message || 'Nota pesanan tidak dapat dimuat.');
+        }
     };
 
     // Auto-focus barcode input on initial page mount
@@ -510,6 +537,11 @@ export default function PosIndex({
             return;
         }
 
+        if (metodePembayaran === 'duitku' && !duitkuMethod) {
+            alert('Pilih channel pembayaran Duitku.');
+            return;
+        }
+
         setAutoPrintTrigger(withPrint);
         setIsSubmitting(true);
 
@@ -522,6 +554,7 @@ export default function PosIndex({
                 })),
                 id_pelanggan: selectedPelanggan || null,
                 metode_pembayaran: metodePembayaran,
+                ...(metodePembayaran === 'duitku' ? { duitku_payment_method: duitkuMethod } : {}),
                 diskon: diskonSafe,
                 uang_diterima: metodePembayaran === 'tunai' ? nominalUangDiterima : totalPembayaran,
                 catatan: catatan
@@ -530,6 +563,31 @@ export default function PosIndex({
             },
             {
                 preserveScroll: true,
+                onSuccess: (page) => {
+                    const receipt = page.props?.flash?.struk;
+
+                    const pendingPayment = page.props?.flash?.pendingDuitku || page.props?.pendingDuitku;
+                    if (pendingPayment) {
+                        setDuitkuPending(pendingPayment);
+                        if (page.props?.flash?.pendingDuitku?.payment_url) {
+                            window.open(page.props.flash.pendingDuitku.payment_url, '_blank', 'noopener,noreferrer');
+                        }
+                        return;
+                    }
+
+                    if (!receipt) {
+                        return;
+                    }
+
+                    lastProcessedTrxRef.current = receipt.nomor_transaksi;
+                    setReceiptModalData(receipt);
+                    setAutoPrintTrigger(withPrint);
+                    setCart([]);
+                    setDiskonNominal(0);
+                    setUangDiterima('');
+                    setCatatan('');
+                    setSelectedPelanggan('');
+                },
                 onFinish: () => {
                     setIsSubmitting(false);
                 },
@@ -537,11 +595,37 @@ export default function PosIndex({
         );
     };
 
+    const checkDuitkuPayment = () => {
+        if (!duitkuPending?.transaction_id) return;
+        setIsSubmitting(true);
+        router.post(`/pos/duitku/${duitkuPending.transaction_id}/check`, {}, {
+            preserveScroll: true,
+            onSuccess: (page) => {
+                const receipt = page.props?.flash?.struk;
+                if (receipt) {
+                    setReceiptModalData(receipt);
+                    setAutoPrintTrigger(true);
+                    setDuitkuPending(null);
+                    setCart([]);
+                    setDiskonNominal(0);
+                    setUangDiterima('');
+                    setCatatan('');
+                    setSelectedPelanggan('');
+                }
+            },
+            onFinish: () => setIsSubmitting(false),
+        });
+    };
+
     return (
         <AuthenticatedLayout>
             <Head title="Kasir Toko - POS Terminal" />
 
-            {isCustomerRole ? <div className="rounded-xl border bg-amber-50 p-5 text-amber-900">Halaman POS kasir hanya tersedia untuk admin dan kasir. Silakan gunakan katalog belanja pelanggan.</div> : <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            {duitkuPending && <section className="mb-4 rounded-2xl border border-blue-200 bg-blue-50 p-4"><h2 className="font-bold text-blue-950">Pembayaran Duitku menunggu</h2><p className="mt-1 text-sm text-blue-800">Selesaikan pembayaran di halaman Duitku, lalu verifikasi untuk menutup transaksi dan mencetak struk.</p><div className="mt-3 flex flex-wrap gap-2">{duitkuPending.payment_url && <a href={duitkuPending.payment_url} target="_blank" rel="noreferrer" className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-bold text-white">Buka checkout Duitku</a>}<button type="button" disabled={isSubmitting} onClick={checkDuitkuPayment} className="rounded-lg border border-blue-300 bg-white px-4 py-2 text-sm font-bold text-blue-800 disabled:opacity-50">{isSubmitting ? 'Memeriksa…' : 'Cek pembayaran'}</button></div><p className="mt-2 text-xs text-blue-700">Order: {duitkuPending.order_id}</p></section>}
+
+            {pesananOnline.length > 0 && <section className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4"><div className="mb-3 flex items-center justify-between"><div><h2 className="font-bold text-amber-950">Pesanan Online Menunggu</h2><p className="text-xs text-amber-800">Cetak nota untuk disertakan bersama pesanan COD.</p></div><span className="rounded-full bg-amber-200 px-2.5 py-1 text-xs font-bold text-amber-900">{pesananOnline.length}</span></div><div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{pesananOnline.map((order) => <div key={order.id_transaksi} className="flex items-center justify-between gap-3 rounded-xl border border-amber-100 bg-white p-3"><div className="min-w-0"><p className="truncate text-sm font-bold">{order.nomor_transaksi}</p><p className="truncate text-xs text-slate-500">{order.pelanggan} · {order.tanggal}</p><p className="text-sm font-semibold">{formatRupiah(order.total_belanja)}</p></div><button type="button" onClick={() => handleReprintReceipt(order.id_transaksi)} className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-bold text-white hover:bg-blue-700"><Printer className="h-3.5 w-3.5" />Cetak nota</button></div>)}</div></section>}
+
+            {isCustomerRole ? <div className="space-y-4"><div className="rounded-xl border bg-amber-50 p-5 text-amber-900">Halaman POS kasir hanya tersedia untuk admin dan kasir. Silakan gunakan katalog belanja pelanggan.</div>{flash?.struk && <div className="rounded-xl border bg-white p-5"><h2 className="font-bold">Nota pesanan {flash.struk.nomor_transaksi}</h2><p className="mt-1 text-sm text-slate-600">Pesanan online · {flash.struk.status === 'menunggu' ? 'Menunggu pembayaran COD' : flash.struk.status}</p><p className="mt-1 text-sm">Total: {formatRupiah(flash.struk.total_belanja)}</p><button type="button" onClick={() => setReceiptModalData(flash.struk)} className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-bold text-white"><Printer className="h-4 w-4" /> Cetak nota</button></div>}</div> : <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
                 {/* =========================================
                     LEFT SECTION (COL 7 / 8): CATALOG & SEARCH
                    ========================================= */}
@@ -1072,7 +1156,7 @@ export default function PosIndex({
                             <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">
                                 Metode Pembayaran
                             </label>
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                                 <button
                                     type="button"
                                     onClick={() => setMetodePembayaran('tunai')}
@@ -1114,6 +1198,15 @@ export default function PosIndex({
 
                                 <button
                                     type="button"
+                                    onClick={() => setMetodePembayaran('duitku')}
+                                    className={`py-2 px-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 ${metodePembayaran === 'duitku' ? 'bg-violet-600 text-white border-violet-600 shadow-sm' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'}`}
+                                >
+                                    <QrCode className="w-3.5 h-3.5" />
+                                    <span>Duitku</span>
+                                </button>
+
+                                <button
+                                    type="button"
                                     onClick={() => setMetodePembayaran('saldo')}
                                     className={`py-2 px-2 rounded-xl text-xs font-bold border flex items-center justify-center gap-1.5 transition-all cursor-pointer ${metodePembayaran === 'saldo' ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'}`}
                                 >
@@ -1122,6 +1215,8 @@ export default function PosIndex({
                                 </button>
                             </div>
                         </div>
+
+                        {metodePembayaran === 'duitku' && <div className="space-y-2 pt-1"><label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400">Channel pembayaran Duitku</label><select value={duitkuMethod} onChange={(event) => setDuitkuMethod(event.target.value)} className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm"><option value="">Pilih pembayaran Duitku</option>{paymentMethods.map((method) => <option key={method.code} value={method.code}>{method.name}{Number(method.fee) > 0 ? ` (+${formatRupiah(method.fee)})` : ''}</option>)}</select>{!duitkuConfigured && <p className="text-xs text-amber-700">Duitku belum dikonfigurasi.</p>}{paymentMethodsError && <p className="text-xs text-amber-700">{paymentMethodsError}</p>}{duitkuConfigured && paymentMethods.length === 0 && !paymentMethodsError && <p className="text-xs text-amber-700">Duitku belum mengirim channel pembayaran. Muat ulang halaman, lalu periksa konfigurasi Sandbox.</p>}<p className="text-xs text-slate-500">QRIS/transfer yang tersedia mengikuti channel aktif pada akun Duitku. Transaksi dan stok difinalisasi setelah pembayaran terverifikasi.</p></div>}
 
                         {/* Cash Input & Change Calculation */}
                         {metodePembayaran === 'tunai' && (
@@ -1184,7 +1279,7 @@ export default function PosIndex({
                         <button
                             type="button"
                             onClick={() => handleCheckout(true)}
-                            disabled={isSubmitting || cart.length === 0}
+                            disabled={isSubmitting || cart.length === 0 || Boolean(duitkuPending)}
                             className="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-sky-600 hover:from-blue-700 hover:to-sky-700 text-white font-bold rounded-xl text-xs sm:text-sm shadow-md shadow-blue-500/25 flex items-center justify-center gap-2 transition-all transform active:scale-[0.99] disabled:opacity-50 cursor-pointer"
                         >
                             <Printer className="w-4 h-4" />
@@ -1197,7 +1292,7 @@ export default function PosIndex({
                         <button
                             type="button"
                             onClick={() => handleCheckout(false)}
-                            disabled={isSubmitting || cart.length === 0}
+                            disabled={isSubmitting || cart.length === 0 || Boolean(duitkuPending)}
                             className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer disabled:opacity-40"
                         >
                             <Check className="w-3.5 h-3.5 text-slate-500" />

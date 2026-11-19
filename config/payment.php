@@ -1,9 +1,11 @@
 <?php
 
 return [
-    'midtrans' => [
-        'server_key' => env('MIDTRANS_SERVER_KEY'),
-        'client_key' => env('MIDTRANS_CLIENT_KEY'),
-        'base_url' => env('MIDTRANS_BASE_URL', 'https://app.sandbox.midtrans.com'),
+    'duitku' => [
+        'merchant_code' => env('DUITKU_MERCHANT_CODE'),
+        'api_key' => env('DUITKU_API_KEY'),
+        'base_url' => env('DUITKU_BASE_URL', 'https://sandbox.duitku.com'),
+        'expiry_period' => (int) env('DUITKU_EXPIRY_PERIOD', 1440),
+        'ca_bundle' => env('DUITKU_CA_BUNDLE', 'C:/xampp/apache/bin/curl-ca-bundle.crt'),
     ],
 ];
